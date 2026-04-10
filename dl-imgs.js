@@ -1,4 +1,4 @@
-// 图片打包工具 - 修复版
+// 图片打包工具 - 手动调用版
 (function () {
   // 默认配置
   const DEFAULT_CONFIG = {
@@ -7,13 +7,9 @@
     verbose: true,
   };
 
-  const CONFIG = window.__ZIP_CONFIG__
-    ? Object.assign({}, DEFAULT_CONFIG, window.__ZIP_CONFIG__)
-    : DEFAULT_CONFIG;
+  let currentConfig = Object.assign({}, DEFAULT_CONFIG);
 
-  console.log("当前配置(可通过window.__ZIP_CONFIG__修改)", CONFIG);
-
-  const log = (...args) => CONFIG.verbose && console.log(...args);
+  const log = (...args) => currentConfig.verbose && console.log(...args);
   const error = (...args) => console.error(...args);
 
   async function loadJSZip() {
@@ -21,7 +17,7 @@
       return window.JSZip;
     }
 
-    log("正在加载 JSZip 库...");
+    console.log("正在加载 JSZip 库...");
     return new Promise((resolve, reject) => {
       const script = document.createElement("script");
       script.src =
@@ -38,16 +34,27 @@
     });
   }
 
-  async function packImages() {
+  async function packImages(userConfig = {}) {
+    // 合并配置
+    currentConfig = Object.assign({}, DEFAULT_CONFIG, userConfig);
+
+    console.log("当前配置:", currentConfig);
+    console.log(
+      "提示: 可通过 window.packImages({ selector: '...', outputName: '...', verbose: true/false }) 修改配置",
+    );
+
     try {
       // 先加载 JSZip
       const JSZip = await loadJSZip();
       const zip = new JSZip();
 
-      const images = document.querySelectorAll(CONFIG.selector);
+      const images = document.querySelectorAll(currentConfig.selector);
 
       if (images.length === 0) {
-        error(`未找到图片，选择器: ${CONFIG.selector}`);
+        error(`未找到图片，选择器: ${currentConfig.selector}`);
+        console.log(
+          `💡 提示: 请检查选择器是否正确，当前页面共有 ${document.images.length} 张图片`,
+        );
         return;
       }
 
@@ -87,15 +94,30 @@
       const content = await zip.generateAsync({ type: "blob" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(content);
-      link.download = CONFIG.outputName;
+      link.download = currentConfig.outputName;
       link.click();
       URL.revokeObjectURL(link.href);
 
-      log(`完成！成功打包 ${successCount}/${images.length} 张图片`);
+      log(`🎉 完成！成功打包 ${successCount}/${images.length} 张图片`);
+      console.log(`📦 下载文件: ${currentConfig.outputName}`);
     } catch (err) {
       error("打包失败:", err.message);
     }
   }
 
-  packImages();
+  // 挂载到 window
+  window.packImages = packImages;
+
+  // 显示使用提示
+  console.log("📦 图片打包工具已加载！");
+  console.log("💡 使用方法：");
+  console.log("   window.packImages()  // 使用默认配置");
+  console.log(
+    "   window.packImages({ selector: '.my-images img', outputName: 'my-photos.zip', verbose: false })",
+  );
+  console.log("");
+  console.log("📋 参数说明：");
+  console.log("   selector  - CSS 选择器，默认: '.grid-scroll--O0kCz img'");
+  console.log("   outputName - 输出文件名，默认: 'images.zip'");
+  console.log("   verbose   - 是否显示详细日志，默认: true");
 })();
